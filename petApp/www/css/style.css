@@ -1,1 +1,7 @@
 /* Empty. Add your own CSS if you like */
+
+.btn {
+    width: 80px;
+    height: 60px;
+    text-align: center;
+}

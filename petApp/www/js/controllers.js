@@ -9,6 +9,7 @@ angular.module('starter.controllers', [])
     var ws = null;
     var pc;
     var audio_video_stream;
+    var msgString = "";
     var pcConfig = {
         "iceServers": [
                 { "urls": ["stun:stun.l.google.com:19302", "stun:" + signalling_server_hostname + ":3478"] }
@@ -43,9 +44,13 @@ angular.module('starter.controllers', [])
                     pcConfig_.iceServers = JSON.parse(ice_servers);
                 }
             } catch (e) {
-                console.error(e + "\nExample: "
+
+                var error = e + "\nExample: "
                         + '\n[ {"urls": "stun:stun1.example.net"}, {"urls": "turn:turn.example.org", "username": "user", "credential": "myPassword"} ]'
-                        + "\nContinuing with built-in RTCIceServer array");
+                        + "\nContinuing with built-in RTCIceServer array";
+                $scope.showMessage(error);
+
+                console.error(error);
             }
             console.log(JSON.stringify(pcConfig_));
             pc = new RTCPeerConnection(pcConfig_, pcOptions);
@@ -53,10 +58,25 @@ angular.module('starter.controllers', [])
             pc.onaddstream = $scope.onRemoteStreamAdded;
             pc.onremovestream = $scope.onRemoteStreamRemoved;
             console.log("peer connection successfully created! " + e);
+            $scope.showMessage("peer connection successfully created! " + e);
         } catch (e) {
-            console.log("createPeerConnection() failed");
+            var error = "createPeerConnection() failed";
+            $scope.showMessage(error);
+            console.log(error);
         }
     }
+    $scope.showMessage = function (err) {        
+        var div = document.getElementById('error-message');
+        msgString += (err+"<br/>");
+        div.innerHTML = msgString;
+    }
+    $scope.clearMessages = function (err) {
+        var div = document.getElementById('error-message');
+        msgString = "";
+        div.innerHTML = "";
+        console.clear();
+    }
+
     $scope.onIceCandidate = function (event) {
         if (event.candidate) {
             var candidate = {
@@ -71,10 +91,12 @@ angular.module('starter.controllers', [])
             ws.send(JSON.stringify(command));
         } else {
             console.log("End of candidates.");
+            $scope.showMessage("End of candidates.");
         }
     }
     $scope.onRemoteStreamAdded = function (event) {
         console.log("Remote stream added:", URL.createObjectURL(event.stream));
+        $scope.showMessage("Remote stream added:", URL.createObjectURL(event.stream));
         var remoteVideoElement = document.getElementById('remote-video');
         remoteVideoElement.src = URL.createObjectURL(event.stream);
         remoteVideoElement.play();
@@ -109,6 +131,7 @@ angular.module('starter.controllers', [])
             }
             ws.onopen = function () {
                 console.log("onopen()");
+                $scope.showMessage("onopen()");
                 audio_video_stream = null;
                 var cast_mic = true;//document.getElementById("cast_mic").checked;
                 var cast_tab = false;//document.getElementById("cast_tab") ? document.getElementById("cast_tab").checked : false;
@@ -169,9 +192,11 @@ angular.module('starter.controllers', [])
                             stop();
                             console.error("An error has occurred. Check media permissions.");
                             console.log(error);
+                            $scope.showMessage("An error has occurred. Check media permissions. ::" +error);
                         });
                     } else {
                         console.log("getUserMedia not supported");
+                        $scope.showMessage("getUserMedia not supported");
                     }
                 } else {
                     offer();
@@ -185,24 +210,28 @@ angular.module('starter.controllers', [])
                 switch (msg.type) {
                     case "offer":
                         pc.setRemoteDescription(new RTCSessionDescription(msg),
-                    function onRemoteSdpSuccess() {
-                        console.log('onRemoteSdpSucces()');
-                        pc.createAnswer(function (sessionDescription) {
-                            pc.setLocalDescription(sessionDescription);
-                            var command = {
-                                command_id: "answer",
-                                data: JSON.stringify(sessionDescription)
-                            };
-                            ws.send(JSON.stringify(command));
-                            console.log(command);
-                        }, function (error) {
-                            console.error("Failed to createAnswer: " + error);
-                        }, mediaConstraints);
-                    },
-                    function onRemoteSdpError(event) {
-                        console.error('Failed to set remote description (unsupported codec on this browser?): ' + event);
-                        stop();
-                    }
+                            function onRemoteSdpSuccess() {
+                                console.log('onRemoteSdpSucces()');
+                                pc.createAnswer(function (sessionDescription) {
+                                    pc.setLocalDescription(sessionDescription);
+                                    var command = {
+                                        command_id: "answer",
+                                        data: JSON.stringify(sessionDescription)
+                                    };
+                                    ws.send(JSON.stringify(command));
+                                    console.log(command);
+                                }, function (error) {
+                                    var err = "Failed to createAnswer: " + error;
+                                    $scope.showMessage(err);
+                                    console.error(err);
+                                }, mediaConstraints);
+                            },
+                            function onRemoteSdpError(event) {
+                                var err = 'Failed to set remote description (unsupported codec on this browser?): ' + event;
+                                $scope.showMessage(err);
+                                console.error(err);
+                                stop();
+                            }
                         );
                         var command = {
                             command_id: "geticecandidate"
@@ -214,6 +243,7 @@ angular.module('starter.controllers', [])
                         break;
                     case "message":
                         console.error(msg.data);
+                        $scope.showMessage("Message case: "+msg.data);
                         break;
                     case "geticecandidate":
                         var candidates = JSON.parse(msg.data);
@@ -227,6 +257,7 @@ angular.module('starter.controllers', [])
                                 },
                                 function (error) {
                                     console.log("addIceCandidate error: " + error);
+                                    $scope.showMessage("addIceCandidate error: " + error);
                                 }
                             );
 
@@ -247,10 +278,12 @@ angular.module('starter.controllers', [])
             };
             ws.onerror = function (evt) {
                 console.error("An error has occurred!");
+                $scope.showMessage("An error has occurred! -" + evt);
                 ws.close();
             };
         } else {
             console.error("Sorry, this browser does not support WebSockets.");
+            $scope.showMessage("Sorry, this browser does not support WebSockets");
         }
     }
     $scope.stop = function () {
@@ -260,6 +293,10 @@ angular.module('starter.controllers', [])
             } catch (e) {
                 for (var i = 0; i < audio_video_stream.getTracks().length; i++)
                     audio_video_stream.getTracks()[i].stop();
+
+                var error = e+"stoping...???";
+                $scope.showMessage(error);
+
             }
             audio_video_stream = null;
         }
@@ -278,7 +315,7 @@ angular.module('starter.controllers', [])
         document.documentElement.style.cursor = 'default';
     }
     $scope.sendCaptureCmd = function (cmd) {
-
+        $scope.clearMessages();
         var url = "http://" + signalling_server_hostname + "/server/restart";
 
         var req = {
